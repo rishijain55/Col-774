@@ -1,0 +1,1 @@
+value of theta obtained is: [ 0.40125316  2.5885477  -2.72558849]

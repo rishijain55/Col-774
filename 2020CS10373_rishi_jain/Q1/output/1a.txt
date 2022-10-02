@@ -1,0 +1,5 @@
+learning_rate = 0.001
+stopping_factor = 1e-15
+theta_0 = 0.9966191017815839
+theta_1 = 0.0013401946761656392
+total_iterations = 13807
