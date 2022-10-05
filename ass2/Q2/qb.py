@@ -1,6 +1,8 @@
+from cmath import inf
 from math import gamma
 import sys
 import csv
+from matplotlib import test
 import numpy as np
 from cvxopt import matrix as cvxopt_matrix
 from cvxopt import solvers as cvxopt_solvers
@@ -8,15 +10,6 @@ import pickle
 import time
 import os
 from os.path import join
-
-def squaredDistanceMatrix(x, y, same=False):
-    if same:
-        squares = np.einsum('ij,ij->i', x, x)
-        squares_fill = np.tile(squares, (squares.shape[0], 1))
-        return squares_fill + squares_fill.T - 2 * np.matmul(x, x.T)
-    squares_x = np.einsum('ij,ij->i', x, x)
-    squares_y = np.einsum('ij,ij->i', y, y)
-    return np.tile(squares_y, (squares_x.shape[0], 1)) + np.tile(squares_x, (squares_y.shape[0], 1)).T - 2 * np.matmul(x, y.T)
 
 def ker(x,z,gamma=0.001):
     XminY = x-z
@@ -29,13 +22,9 @@ def kernelMat(X,Y,gamma=0.001):
     for i in range(X.shape[0]):
         for j in range(Y.shape[0]):
             XminY = X[i]-Y[j]
-            # print(XminY)
             tunu =np.dot(XminY,XminY)
-            print(tunu)
             K[i,j] = np.exp(-gamma*tunu)
     return K
-
-
 
 def get_Data(dataFile, class1=3, class2=4):
     file = open(dataFile, 'rb')
@@ -44,16 +33,21 @@ def get_Data(dataFile, class1=3, class2=4):
     m = len(data["labels"])
     x=[]
     y=[]
+    c1=0
+    c2=0
+    lim =inf
     for i in range(m):
-        if data["labels"][i]==class1:
-            y.append(-1)
+        if data["labels"][i]==class1 and c1<lim:
+            c1+=1
+            y.append(-1.)
             x_temp=[]
             for j in range(32):
                 for k in range(32):
                     x_temp.extend(data["data"][i][j][k])
             x.append(x_temp)
-        elif data["labels"][i]==class2:
-            y.append(1)
+        elif data["labels"][i]==class2 and c2<lim:
+            c2+=1
+            y.append(1.)
             x_temp=[]
             for j in range(32):
                 for k in range(32):
@@ -64,28 +58,18 @@ def get_Data(dataFile, class1=3, class2=4):
 def getSvmParamsGaussian(x_train,y_train,C=1.0):
     gamma =0.001
     m,n = x_train.shape
-    print(m,n)
-    print(x_train)
-    # NormX = np.array([np.dot(x_train[i],x_train[i]) for i in range(m)])
-    # print(NormX)
-    # XXT = np.matmul(x_train,x_train.T)
-    # print(XXT.shape)
-    # DifNorm= np.array([[NormX[i]+NormX[j]-2*XXT[i,j] for j in range(m)] for i in range(m)]) 
-    # print(DifNorm)
-    # K = np.array([[np.exp(-gamma*DifNorm[i,j]) for j in range(m)] for i in range(m)]) 
-    # print(K)
-    K= kernelMat(x_train,x_train)
-    # K= np.exp(-gamma * squaredDistanceMatrix(x_train, x_train, same=True))
-    print("calc of K done")
-    print(K)
+    NormX = np.array([np.dot(x_train[i],x_train[i]) for i in range(m)])
+    XXT = np.matmul(x_train,x_train.T)
+    DifNorm= np.array([[NormX[i]+NormX[j]-2*XXT[i,j] for j in range(m)] for i in range(m)]) 
+    K = np.exp(-gamma*DifNorm)
+    # print("calc of k done")
+    print(DifNorm)
     H = np.array([[(y_train[i]*y_train[j]*K[i,j])*1.0 for j in range(m)]for i in range(m)])
-    print(H)
-    print("calc of H done")
     P = cvxopt_matrix(H)
     q = cvxopt_matrix(-np.ones((m, 1)))
     G = cvxopt_matrix(np.vstack((-1 * np.identity(m), np.identity(m))))
     h = cvxopt_matrix(np.hstack((np.zeros(m), np.ones(m) * C)))
-    A = cvxopt_matrix(np.array([[y_train[i]] for i in range(m)]))
+    A = cvxopt_matrix([[y_train[i]] for i in range(m)])
     b = cvxopt_matrix(np.zeros(1))
 
     #Run solver
@@ -100,19 +84,28 @@ def getSvmParamsGaussian(x_train,y_train,C=1.0):
     x_valid =x_train[S]
     y_valid=y_train[S]
     b = y_valid[0] - np.sum(np.array([y_train[i]*alphas[i]*ker(x_train[i],x_valid[0]) for i in range(m)])) 
-    print("checking b")
-    print(b)
+    # print("checking b")
+    # print(b)
     #Display results
+    indexSV = [(alphas[i],i) for i in range(m) if alphas[i] >1e-5]
+
     print('Alphas = ',alphas[np.logical_and((alphas > 1e-5),(C-1e-5>alphas))])
     print('b = ', b)
-    return alphas, b
+    return alphas, b, indexSV
 
 def testGaussianSVM(x_test,x_train,y_train,alphas,b):
-    m,n = x_test.shape
-    result =np.zeros(m)
-    for i in range(m):
-        functionalMargin =np.sum(np.array([y_train[j]*alphas[j]*ker(x_train[j],x_test[i]) for j in range(m)])) +b
-        print(functionalMargin)
+    gamma =0.001
+    m,n = x_train.shape
+    testSize,_ = x_test.shape
+    result =np.zeros(testSize)
+    NormX_train = np.array([np.dot(x_train[i],x_train[i]) for i in range(m)])
+    NormX_test = np.array([np.dot(x_test[i],x_test[i]) for i in range(testSize)])
+    XXT = np.matmul(x_train,x_test.T)
+    DifNorm= np.array([[NormX_train[i]+NormX_test[j]-2*XXT[i,j] for j in range(testSize)] for i in range(m)]) 
+    K = np.exp(-gamma*DifNorm)
+    for i in range(testSize):
+        functionalMargin =np.sum(np.array([y_train[j]*alphas[j]*K[j,i] for j in range(m)])) +b
+        # print(functionalMargin)
         if functionalMargin>=0.:
             result[i]=1
         else:
@@ -133,17 +126,22 @@ def main():
     train_Dir = sys.argv[1]
     test_Dir = sys.argv[2]
     trainData = join(train_Dir,"train_data.pickle")
-    testData = join(train_Dir,"test_data.pickle")
-    x_train, y_train = get_Data(trainData,0,1)
+    testData = join(test_Dir,"test_data.pickle")
+    x_train, y_train = get_Data(trainData,0,4)
     x_train=np.array(x_train)/255
+    # print(x_train.shape)
     y_train=np.array(y_train)
-    x_test, y_test = get_Data(testData,0,1)
+    x_test, y_test = get_Data(testData,0,4)
     x_test=np.array(x_test)/255
     y_test=np.array(y_test)
     m = len(y_train)
-    alphas_gaussian,b_gaussian=getSvmParamsGaussian(x_train,y_train)
+    startTime = time.time()
+    print("calculating for gaussian kernel with cvxopt")
+    alphas_gaussian,b_gaussian,_=getSvmParamsGaussian(x_train,y_train)
     yPredicGaussian= testGaussianSVM(x_test,x_train,y_train,alphas_gaussian,b_gaussian)
     print("accuracy is ",getAcc(yPredicGaussian,y_test))
+    timeTaken = time.time()-startTime
+    print("time taken for gaussian kernel with cvxopt: ",timeTaken)
 
 
 main()

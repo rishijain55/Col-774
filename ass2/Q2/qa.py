@@ -55,17 +55,18 @@ def getSvmParams(x_train,y_train,C=1.0):
     for i in range(m):
         if (alphas[i]>1e-5):
             SVcount+=1
+    indexSV = [(alphas[i],i) for i in range(m) if alphas[i] >1e-7]
     print("support vector count: ",SVcount,"total vectors: ",m)
-    S = (np.logical_and((alphas > 1e-5),(C-alphas>1e-5))).flatten()
+    S = (np.logical_and((alphas > 1e-7),(C-alphas>1e-7))).flatten()
     b = y_train[S] - np.dot(x_train[S], w)
-    print("checking b")
-    print(b)
+    # print("checking b")
+    # print(b)
     #Display results
-    print('Alphas = ',alphas[alphas > 1e-4])
+    print('Alphas = ',alphas)
     print('w = ', w.flatten())
     print('b = ', b[0])
-    print(w.shape)
-    return w, b[0]
+    # print(w.shape)
+    return w, b[0],indexSV
 
 def testSVM(x_test,w,b):
     m,n = x_test.shape
@@ -92,16 +93,21 @@ def main():
     test_Dir = sys.argv[2]
     trainData = join(train_Dir,"train_data.pickle")
     testData = join(train_Dir,"test_data.pickle")
-    x_train, y_train = get_Data(trainData,0,1)
+    x_train, y_train = get_Data(trainData,0,4)
     x_train=np.array(x_train)/255
     y_train=np.array(y_train)
-    x_test, y_test = get_Data(testData,0,1)
+    x_test, y_test = get_Data(testData,0,4)
     x_test=np.array(x_test)/255
     y_test=np.array(y_test)
     m = len(y_train)
-    w_linear,b_linear=getSvmParams(x_train,y_train)
+    startTime = time.time()
+    print("calculating for linear kernel with cvxopt")
+    w_linear,b_linear,indexSV=getSvmParams(x_train,y_train)
     yPredicLinear= testSVM(x_test,w_linear,b_linear)
+    timeTaken = time.time()-startTime
+    
     print("accuracy is ",getAcc(yPredicLinear,y_test))
+    print("time taken for linear kernel with cvxopt is",timeTaken)
 
 
 main()
