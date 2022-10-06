@@ -54,10 +54,10 @@ def main():
     test_Dir = sys.argv[2]
     trainData = join(train_Dir,"train_data.pickle")
     testData = join(test_Dir,"test_data.pickle")
-    x_train, y_train = get_Data(trainData,0,4)
+    x_train, y_train = get_Data(trainData,3,4)
     x_train=np.array(x_train)/255
     y_train=np.array(y_train)
-    x_test, y_test = get_Data(testData,0,4)
+    x_test, y_test = get_Data(testData,3,4)
     x_test=np.array(x_test)/255
     y_test=np.array(y_test)
     m = len(y_train)

@@ -9,7 +9,9 @@ from cvxopt import solvers as cvxopt_solvers
 import pickle
 import time
 import os
+from matplotlib import pyplot as plt
 from os.path import join
+import random 
 
 def ker(x,z,gamma=0.001):
     XminY = x-z
@@ -31,7 +33,7 @@ def get_Data_train(dataFile):
     data = pickle.load(file)
     file.close()
     m = len(data["labels"])
-    print(m)
+    # print(m)
     # m =1000
     x=[]
     y=[[],[],[],[],[]]
@@ -56,7 +58,7 @@ def get_Data_test(dataFile):
     data = pickle.load(file)
     file.close()
     m = len(data["labels"])
-    print(m)
+    # print(m)
     # m =1000
     x=[]
     y=[]
@@ -93,13 +95,13 @@ def getSvmParamsGaussian(x_train,y_train,C=1.0):
     b = cvxopt_matrix(np.zeros(1))
 
     #Run solver
-    sol = cvxopt_solvers.qp(P, q, G, h, A, b)
+    sol = cvxopt_solvers.qp(P, q, G, h, A, b, options={'show_progress': False})
     alphas = np.array(sol['x'])
     SVcount=0
     for i in range(m):
         if (alphas[i]>1e-5):
             SVcount+=1
-    print("support vector count: ",SVcount,"total vectors: ",m)
+    # print("support vector count: ",SVcount,"total vectors: ",m)
     S = (np.logical_and((alphas > 1e-5),(C-1e-5>alphas))).flatten()
     x_valid =x_train[S]
     y_valid=y_train[S]
@@ -109,8 +111,8 @@ def getSvmParamsGaussian(x_train,y_train,C=1.0):
     #Display results
     indexSV = [(alphas[i],i) for i in range(m) if alphas[i] >1e-5]
 
-    print('Alphas = ',alphas[np.logical_and((alphas > 1e-5),(C-1e-5>alphas))])
-    print('b = ', b)
+    # print('Alphas = ',alphas[np.logical_and((alphas > 1e-5),(C-1e-5>alphas))])
+    # print('b = ', b)
     return alphas, b, indexSV
 
 def testGaussianSVMforClass(x_test,x_train,y_train,alphas,b,c1,c2):
@@ -118,7 +120,7 @@ def testGaussianSVMforClass(x_test,x_train,y_train,alphas,b,c1,c2):
     gamma =0.001
     m,n = x_train.shape
     testSize,_ = x_test.shape
-    result =np.zeros(testSize)
+    result =[]
     NormX_train = np.array([np.dot(x_train[i],x_train[i]) for i in range(m)])
     NormX_test = np.array([np.dot(x_test[i],x_test[i]) for i in range(testSize)])
     XXT = np.matmul(x_train,x_test.T)
@@ -128,9 +130,9 @@ def testGaussianSVMforClass(x_test,x_train,y_train,alphas,b,c1,c2):
         functionalMargin =np.sum(np.array([y_train[j]*alphas[j]*K[j,i] for j in range(m)])) +b
         # print(functionalMargin)
         if functionalMargin>=0.:
-            result[i]=c2
+            result.append((c2,functionalMargin))
         else:
-            result[i]=c1
+            result.append((c1,abs(functionalMargin)))
     return result
 
 def testSVM(x_test,x_train,y_train,params):
@@ -150,13 +152,16 @@ def testSVM(x_test,x_train,y_train,params):
             result_arr[c1][c2]= testGaussianSVMforClass(x_test,np.array(x_ob),np.array(y_ob),params[c1][c2][0],params[c1][c2][1],c1,c2)
     # print(result_arr)
     for i in range(testSize):
-        temp_count=np.array([0,0,0,0,0])
+        temp_count= [[0,0,0],[0,0,1],[0,0,2],[0,0,3],[0,0,4]]
         for c1 in range(5):
             for c2 in range(c1+1,5):    
-                kayo =int(result_arr[c1][c2][i])
+                vote =int(result_arr[c1][c2][i][0])
+                conf = result_arr[c1][c2][i][1]
                 # print(result_arr[c1][c2][i],kayo)
-                temp_count[kayo]+=1
-        result[i]= np.argmax(temp_count)
+                temp_count[vote][0]+=1
+                temp_count[vote][1]+=conf
+        temp_count.sort(reverse=True)
+        result[i]= temp_count[0][2]
     return result
 
 def getAcc(yPredic,yTest):
@@ -169,10 +174,35 @@ def getAcc(yPredic,yTest):
             inc+=1
     return 100*(cor/(cor+inc))
 
+def display_10(ind,trainData):
+    file = open(trainData, 'rb')
+    data = pickle.load(file)
+    file.close()  
+    for i in range(10):
+        imar = np.array(data["data"][ind[i][0]])/255
+        for c in range(32):
+            for r in range(32):
+                imar[c][r]=(imar[c][r][0],imar[c][r][1],imar[c][r][2])       
+        # print(imar)
+        fig = plt.figure()
+        plt.imshow(imar, interpolation='none')
+        fig.savefig('cvxopt_misclassed{}_as{}_no{}.png'.format(ind[i][2],ind[i][1],i))
+        plt.close(fig)
+
+def misclass(yPredic,yTest,testData):
+    misInd=[]
+    for i in range(len(yTest)):
+        if yPredic[i]!=yTest[i]:
+            misInd.append((i,yPredic[i],yTest[i]))
+    random.shuffle(misInd)
+    display_10(misInd[:10],testData)
+
 def getConfMatrix(yPredic,yTest):
     ans =[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
     for i in range(len(yTest)):
-        ans[yTest[i]][yPredic[i]]+=1
+        yp = int(yPredic[i])
+        yt = int(yTest[i])
+        ans[yp][yt]+=1
     return ans
 
 def trainSVMforClass(x_train,y_train,c1,c2):
@@ -184,12 +214,14 @@ def trainSVMforClass(x_train,y_train,c1,c2):
     for i in y_train[c2]:
         x_ob.append(x_train[i])
         y_ob.append(1.)
+    print("training for class ",c1,c2)
     alphas_gaussian,b_gaussian,_=getSvmParamsGaussian(np.array(x_ob),np.array(y_ob))
     return alphas_gaussian,b_gaussian
     
 def main():
     train_Dir = sys.argv[1]
     test_Dir = sys.argv[2]
+    
     trainData = join(train_Dir,"train_data.pickle")
     testData = join(test_Dir,"test_data.pickle")
     x_train, y_train = get_Data_train(trainData)
@@ -212,10 +244,13 @@ def main():
     yPredicGaussian= testSVM(x_test,x_train,y_train,params)
     print("accuracy is ",getAcc(yPredicGaussian,y_test))
     timeTaken = time.time()-startTime
-    print("conf matrix with sklearn is")
-    conf_mat = getConfMatrix(yPredicGaussian,y_test)
+    misclass(yPredicGaussian,y_test,testData)
+    file_path = "conf_a"
+    curFile = open(file_path,'w')
+    conf_cvx=getConfMatrix(yPredicGaussian,y_test)
     for i in range(5):
-        print(conf_mat[i])
+        curFile.write(str(conf_cvx[i])+"\n")
+    curFile.close()
     print("time taken for gaussian kernel with cvxopt: ",timeTaken)
 
 

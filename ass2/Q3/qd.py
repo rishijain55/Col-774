@@ -2,13 +2,12 @@ from cmath import inf
 from math import gamma
 import sys
 import numpy as np
-
 import pickle
 import time
 from os.path import join
 from sklearn import svm
 
-
+import matplotlib.pyplot as plt
 
 def get_Data(dataFile):
     file = open(dataFile, 'rb')
@@ -47,8 +46,9 @@ def getAcc(yPredic,yTest):
 def getConfMatrix(yPredic,yTest):
     ans =[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
     for i in range(len(yTest)):
-        ans[yTest[i]][yPredic[i]]+=1
+        ans[yPredic[i]][yTest[i]]+=1
     return ans
+
 
 def main():
     train_Dir = sys.argv[1]
@@ -65,8 +65,8 @@ def main():
     K_param=5
     ##get k fold data
     ind_array=np.random.permutation(m)
-    x_train_per = x_train
-    y_train_per = y_train
+    x_train_per = np.copy(x_train)
+    y_train_per = np.copy(y_train)
 
     for i in range(m):
         x_train_per[i]=x_train[ind_array[i]]
@@ -79,9 +79,10 @@ def main():
     # print(x_train_kFold)
     # print(y_train_kFold)
 
-    C_poss = [1e-5, 1e-3, 1.0, 5.0, 10.0]
-    accOnC_kFold=[0,0,0,0,0]
-    accOnC_test=[0,0,0,0,0]
+    C_poss = [1e-5, 1e-3, 1.0, 5.0, 10.0,50.0, 100.0]
+    # C_poss = [50.0,100.0]
+    accOnC_kFold=[0,0,0,0,0,0,0]
+    accOnC_test=[0,0,0,0,0,0,0]
     for ind,C in enumerate(C_poss):
         current_accuracy = 0
         print('running on C =', C)
@@ -93,7 +94,7 @@ def main():
             x_test_cur = x_train_kFold[i]
             y_test_cur = y_train_kFold[i]
             t = time.time()
-            clf = svm.SVC(kernel='rbf', gamma=0.001,decision_function_shape='ovo')
+            clf = svm.SVC(C=C,kernel='rbf', gamma=0.001,decision_function_shape='ovo')
             clf.fit(x_train_cur, y_train_cur)
             y_pred_cur = clf.predict(x_test_cur)
             accOnC_kFold[ind] += getAcc(y_pred_cur,y_test_cur)
@@ -101,31 +102,20 @@ def main():
         accOnC_kFold[ind] /= 5
         print(accOnC_kFold[ind])
         print('using C =', C, 'for testing on whole model')
-        clf = svm.SVC(kernel='rbf', gamma=0.001,decision_function_shape='ovo')
+        clf = svm.SVC(C=C,kernel='rbf', gamma=0.001,decision_function_shape='ovo')
         clf.fit(x_train, y_train)
         y_pred = clf.predict(x_test)
         accOnC_test[ind]=getAcc(y_pred,y_test)
         print(accOnC_test[ind])
 
-    ##gaussian
-    # startTime = time.time()
-    # print("calculating for gaussian kernel")
-    # clf = svm.SVC(kernel='rbf', gamma=0.001,decision_function_shape='ovo') # Linear Kernel
-    # #Train the model using the training sets
-    # clf.fit(x_train, y_train)
-    # y_pred = clf.predict(x_test)
-    # timeTaken = time.time()- startTime
-    # # print("number of support vectors is ",clf.support_.shape)
-    # # print("alphas= ",np.abs(clf.dual_coef_))
-    # # print("b= ",clf.intercept_)
-    # print("accuracy by sklearn with gaussian kernel is:",getAcc(y_pred,y_test))
-    # print("conf matrix with sklearn is")
-    # conf_mat = getConfMatrix(y_pred,y_test)
-    # for i in range(5):
-    #     print(conf_mat[i])
-
-    # print("time taken by sklearn with gaussian kernel is: ",timeTaken)
-    
+    xPlot = [np.log10(C_poss[i]) for i in range(len(C_poss))]
+    y1Plot = accOnC_kFold
+    y2Plot = accOnC_test
+    fig = plt.figure()
+    plt.plot(xPlot, y1Plot, label='kFold')
+    plt.plot(xPlot, y2Plot, label='test')
+    plt.xlabel('log10(C)')
+    plt.savefig('qdplots.png')
 
 
 main()

@@ -10,6 +10,7 @@ import pickle
 import time
 import os
 from os.path import join
+from matplotlib import pyplot as plt
 
 def ker(x,z,gamma=0.001):
     XminY = x-z
@@ -55,6 +56,21 @@ def get_Data(dataFile, class1=3, class2=4):
             x.append(x_temp)
     return x,y
 
+def display_top5(indexSV,trainData):
+    file = open(trainData, 'rb')
+    data = pickle.load(file)
+    file.close()  
+    for i in range(5):
+        imar = np.array(data["data"][indexSV[i][1]])/255
+        for c in range(32):
+            for r in range(32):
+                imar[c][r]=(imar[c][r][0],imar[c][r][1],imar[c][r][2])       
+        # print(imar)
+        fig = plt.figure()
+        plt.imshow(imar, interpolation='none')
+        fig.savefig('sv_gaussian{}.png'.format(i))
+        plt.close(fig)
+
 def getSvmParamsGaussian(x_train,y_train,C=1.0):
     gamma =0.001
     # x_train =x_train[0:10,0:5]
@@ -67,7 +83,7 @@ def getSvmParamsGaussian(x_train,y_train,C=1.0):
     K = np.exp(-gamma*DifNorm)
     # print("calc of k done")
     # print("time for calc is: ",time.time()-tb)
-    print(DifNorm)
+    # print(DifNorm)
     H = np.array([[(y_train[i]*y_train[j]*K[i,j])*1.0 for j in range(m)]for i in range(m)])
     P = cvxopt_matrix(H)
     q = cvxopt_matrix(-np.ones((m, 1)))
@@ -92,7 +108,7 @@ def getSvmParamsGaussian(x_train,y_train,C=1.0):
     # print(b)
     #Display results
     indexSV = [(alphas[i],i) for i in range(m) if alphas[i] >1e-5]
-
+    indexSV.sort(key = lambda x: x[0],reverse=True)
     print('Alphas = ',alphas[np.logical_and((alphas > 1e-5),(C-1e-5>alphas))])
     print('b = ', b)
     return alphas, b, indexSV
@@ -132,17 +148,18 @@ def main():
     test_Dir = sys.argv[2]
     trainData = join(train_Dir,"train_data.pickle")
     testData = join(test_Dir,"test_data.pickle")
-    x_train, y_train = get_Data(trainData,2,1)
+    x_train, y_train = get_Data(trainData,3,4)
     x_train=np.array(x_train)/255
     # print(x_train.shape)
     y_train=np.array(y_train)
-    x_test, y_test = get_Data(testData,2,1)
+    x_test, y_test = get_Data(testData,3,4)
     x_test=np.array(x_test)/255
     y_test=np.array(y_test)
     m = len(y_train)
     startTime = time.time()
     print("calculating for gaussian kernel with cvxopt")
-    alphas_gaussian,b_gaussian,_=getSvmParamsGaussian(x_train,y_train)
+    alphas_gaussian,b_gaussian,indexSV=getSvmParamsGaussian(x_train,y_train)
+    display_top5(indexSV,trainData)
     yPredicGaussian= testGaussianSVM(x_test,x_train,y_train,alphas_gaussian,b_gaussian)
     print("accuracy is ",getAcc(yPredicGaussian,y_test))
     timeTaken = time.time()-startTime

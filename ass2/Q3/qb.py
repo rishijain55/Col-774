@@ -2,7 +2,8 @@ from cmath import inf
 from math import gamma
 import sys
 import numpy as np
-
+from matplotlib import pyplot as plt
+import random
 import pickle
 import time
 from os.path import join
@@ -44,10 +45,35 @@ def getAcc(yPredic,yTest):
             inc+=1
     return 100*(cor/(cor+inc))
 
+def display_10(ind,trainData):
+    file = open(trainData, 'rb')
+    data = pickle.load(file)
+    file.close()  
+    for i in range(10):
+        imar = np.array(data["data"][ind[i][0]])/255
+        for c in range(32):
+            for r in range(32):
+                imar[c][r]=(imar[c][r][0],imar[c][r][1],imar[c][r][2])       
+        # print(imar)
+        fig = plt.figure()
+        plt.imshow(imar, interpolation='none')
+        fig.savefig('misclass{}_as{}_no{}.png'.format(ind[i][2],ind[i][1],i))
+        plt.close(fig)
+
+def misclass(yPredic,yTest,testData):
+    misInd=[]
+    for i in range(len(yTest)):
+        if yPredic[i]!=yTest[i]:
+            misInd.append((i,yPredic[i],yTest[i]))
+    random.shuffle(misInd)
+    display_10(misInd[:10],testData)
+    
+
+
 def getConfMatrix(yPredic,yTest):
     ans =[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]
     for i in range(len(yTest)):
-        ans[yTest[i]][yPredic[i]]+=1
+        ans[yPredic[i]][yTest[i]]+=1
     return ans
 
 def main():
@@ -62,21 +88,6 @@ def main():
     x_test=np.array(x_test)/255
     y_test=np.array(y_test)
     m = len(y_train)
-    #Create a svm Classifier
-    # startTime = time.time()
-    # print("calculating for linear kernel")
-    # clf = svm.SVC(kernel='linear') # Linear Kernel
-    # #Train the model using the training sets
-    # clf.fit(x_train, y_train)
-    # y_pred = clf.predict(x_test)
-    # timeTaken = time.time()- startTime
-    # print("number of support vectors is ",clf.support_.shape)
-    # print("w= ",clf.coef_)
-    # print("alphas= ",np.abs(clf.dual_coef_))
-    # print("b= ",clf.intercept_)
-    # print("accuracy by sklearn with linear kernel is:",getAcc(y_pred,y_test))
-    # print("time taken by sklearn with linear kernel is: ",timeTaken)
-    
     
     ##gaussian
     startTime = time.time()
@@ -86,15 +97,14 @@ def main():
     clf.fit(x_train, y_train)
     y_pred = clf.predict(x_test)
     timeTaken = time.time()- startTime
-    # print("number of support vectors is ",clf.support_.shape)
-    # print("alphas= ",np.abs(clf.dual_coef_))
-    # print("b= ",clf.intercept_)
     print("accuracy by sklearn with gaussian kernel is:",getAcc(y_pred,y_test))
-    print("conf matrix with sklearn is")
-    conf_mat = getConfMatrix(y_pred,y_test)
+    file_path = "conf_b"
+    curFile = open(file_path,'w')
+    misclass(y_pred,y_test,testData)
+    conf_cvx=getConfMatrix(y_pred,y_test)
     for i in range(5):
-        print(conf_mat[i])
-
+        curFile.write(str(conf_cvx[i])+"\n")
+    curFile.close()
     print("time taken by sklearn with gaussian kernel is: ",timeTaken)
     
 

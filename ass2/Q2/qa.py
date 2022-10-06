@@ -7,6 +7,7 @@ import pickle
 import time
 import os
 from os.path import join
+from matplotlib import pyplot as plt
 
 def get_Data(dataFile, class1=3, class2=4):
     file = open(dataFile, 'rb')
@@ -55,17 +56,17 @@ def getSvmParams(x_train,y_train,C=1.0):
     for i in range(m):
         if (alphas[i]>1e-5):
             SVcount+=1
-    indexSV = [(alphas[i],i) for i in range(m) if alphas[i] >1e-7]
+    indexSV = [(alphas[i],i) for i in range(m) if alphas[i] >1e-5]
+    indexSV.sort(key = lambda x: x[0],reverse=True)
     print("support vector count: ",SVcount,"total vectors: ",m)
-    S = (np.logical_and((alphas > 1e-7),(C-alphas>1e-7))).flatten()
+    S = (np.logical_and((alphas > 1e-5),(C-alphas>1e-5))).flatten()
     b = y_train[S] - np.dot(x_train[S], w)
-    # print("checking b")
-    # print(b)
+
     #Display results
     print('Alphas = ',alphas)
     print('w = ', w.flatten())
     print('b = ', b[0])
-    # print(w.shape)
+    print(w.shape)
     return w, b[0],indexSV
 
 def testSVM(x_test,w,b):
@@ -88,6 +89,22 @@ def getAcc(yPredic,yTest):
             inc+=1
     return 100*(cor/(cor+inc))
 
+def display_top5(indexSV,trainData):
+    file = open(trainData, 'rb')
+    data = pickle.load(file)
+    file.close()  
+    for i in range(5):
+        imar = np.array(data["data"][indexSV[i][1]])/255
+        for c in range(32):
+            for r in range(32):
+                imar[c][r]=(imar[c][r][0],imar[c][r][1],imar[c][r][2])       
+        # print(imar)
+        fig = plt.figure()
+        plt.imshow(imar, interpolation='none')
+        fig.savefig('sv_linear{}.png'.format(i))
+        plt.close(fig)
+        
+
 def main():
     train_Dir = sys.argv[1]
     test_Dir = sys.argv[2]
@@ -105,6 +122,7 @@ def main():
     w_linear,b_linear,indexSV=getSvmParams(x_train,y_train)
     yPredicLinear= testSVM(x_test,w_linear,b_linear)
     timeTaken = time.time()-startTime
+    display_top5(indexSV,trainData)
     
     print("accuracy is ",getAcc(yPredicLinear,y_test))
     print("time taken for linear kernel with cvxopt is",timeTaken)
